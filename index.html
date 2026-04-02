@@ -83,7 +83,6 @@
                 `</div>`;
             }
 
-            // Gebruik de beschrijving in plaats van de artikelenlijst voor de preview
             let descHtml = description && description !== '...' 
                 ? description.replace(/\n/g, '<br>') 
                 : '<em class="text-slate-400">Nog geen omschrijving ingevuld...</em>';
@@ -155,21 +154,57 @@
             reindexDoors();
         }
 
+        // --- VERBETERDE COMPRESSIE FUNCTIE ---
         function handleImgs(e, input) {
             const area = input.closest('.door-section').querySelector('.photo-area');
             Array.from(e.target.files).forEach(file => {
                 const reader = new FileReader();
-                reader.onload = res => {
-                    const imgDiv = document.createElement('div');
-                    imgDiv.className = "relative inline-block";
-                    imgDiv.innerHTML = `<img src="${res.target.result}" class="photo-preview-img shadow-md"><button onclick="const s = this.closest('.door-section'); this.parentElement.remove(); updateDoorSummary(s); autoSave();" class="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-5 h-5 text-xs">×</button>`;
-                    area.appendChild(imgDiv);
-                    updateDoorSummary(area);
-                    autoSave();
+                
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        
+                        // Maximale resolutie instellen
+                        const MAX_WIDTH = 800;
+                        const MAX_HEIGHT = 800;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height *= MAX_WIDTH / width;
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width *= MAX_HEIGHT / height;
+                                height = MAX_HEIGHT;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // Comprimeer naar JPEG op 60% kwaliteit
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+
+                        const imgDiv = document.createElement('div');
+                        imgDiv.className = "relative inline-block";
+                        imgDiv.innerHTML = `<img src="${compressedDataUrl}" class="photo-preview-img shadow-md"><button onclick="const s = this.closest('.door-section'); this.parentElement.remove(); updateDoorSummary(s); autoSave();" class="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-5 h-5 text-xs">×</button>`;
+                        
+                        area.appendChild(imgDiv);
+                        updateDoorSummary(area);
+                        autoSave();
+                    };
+                    img.src = event.target.result;
                 };
                 reader.readAsDataURL(file);
             });
         }
+        // --- EINDE VERBETERDE FUNCTIE ---
 
         function fillDoorData(div, d) {
             div.querySelector('.door-loc').value = d.location || '...';
@@ -254,13 +289,11 @@
                 </div>`;
             
             data.doors.forEach((d, i) => {
-                // Bereken handmatige invoer voor het eindtotaal (haalt tekst en eurotekens weg, behoudt komma/punt)
                 let priceVal = parseFloat((d.totalPrice || '0').toString().replace(',', '.').replace(/[^0-9.-]+/g,"")) || 0;
                 let hoursVal = parseFloat((d.hours || '0').toString().replace(',', '.').replace(/[^0-9.-]+/g,"")) || 0;
                 grandTotalPrice += priceVal;
                 grandTotalHours += hoursVal;
 
-                // PDF Blok per deur met de beschrijving in plaats van de tabel
                 content += `<div style="border:1px solid #ccc; margin-bottom:30px; border-radius:10px; overflow:hidden;">
                     <div style="page-break-inside: avoid;">
                         <div style="background:#dc2626; color:white; padding:10px; font-weight:bold;">DEUR ${i+1}: ${d.location} (Verdiep: ${d.floor})</div>
